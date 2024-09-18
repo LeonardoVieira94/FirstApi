@@ -12,6 +12,8 @@ namespace APICatalog.Controllers
     {
         private readonly AppDbContext _context;
 
+
+
         public ProductsController(AppDbContext context)
         {
             _context = context;
@@ -20,23 +22,39 @@ namespace APICatalog.Controllers
         [HttpGet]
         public ActionResult<IEnumerable<Product>> GetProducts()
         {
-            var products = _context.Products.ToList();
-            if (products is null)
+            try
             {
-                return NotFound();
+                var products = _context.Products.AsNoTracking().ToList();
+                if (products is null)
+                {
+                    return NotFound();
+                }
+                return products;
             }
-            return products;
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
+            }
+            
         }
 
         [HttpGet("{id:int}", Name = "GetProduct")]
         public ActionResult<Product> GetProduct(int id)
         {
-            var product = _context.Products.FirstOrDefault(x => x.ProductId == id);
-            if (product is null)
+            try
             {
-                return NotFound("Product not found");
+                var product = _context.Products.FirstOrDefault(x => x.ProductId == id);
+                if (product is null)
+                {
+                    return NotFound("Product not found");
+                }
+                return product;
             }
-            return product;
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
+            }
+  
         }
 
         [HttpPost]
