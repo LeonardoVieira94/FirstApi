@@ -7,7 +7,7 @@ namespace APICatalog.Models;
 public class Product
 {
     public int ProductId { get; set; }
-    [Required]
+    [Required(ErrorMessage = "Name is required")]
     [StringLength(80)]
     public string? ProductName { get; set; }
     [Required]

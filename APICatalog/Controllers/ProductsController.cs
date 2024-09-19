@@ -2,17 +2,17 @@
 using APICatalog.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace APICatalog.Controllers
 {
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class ProductsController : ControllerBase
     {
         private readonly AppDbContext _context;
-
-
 
         public ProductsController(AppDbContext context)
         {
@@ -20,11 +20,11 @@ namespace APICatalog.Controllers
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<Product>> GetProducts()
+        public async Task<ActionResult<IEnumerable<Product>>> GetProductsAsync()
         {
             try
             {
-                var products = _context.Products.AsNoTracking().ToList();
+                var products = await _context.Products.AsNoTracking().ToListAsync();
                 if (products is null)
                 {
                     return NotFound();
@@ -37,13 +37,25 @@ namespace APICatalog.Controllers
             }
             
         }
+        [HttpGet("price/{value:decimal}")]
+        public async Task<ActionResult<IEnumerable<Product>>> GetByPriceAsync(decimal value)
+        {
+            var products = await _context.Products.Where(p => p.Price >= value).ToListAsync();
 
-        [HttpGet("{id:int}", Name = "GetProduct")]
-        public ActionResult<Product> GetProduct(int id)
+            if (!products.Any())
+            {
+                return NotFound($"No products found that costs more or equals {value}");
+            }
+
+            return Ok(products);
+        }
+
+        [HttpGet("{id:int:min(1)}", Name = "GetProduct")]
+        public async Task<ActionResult<Product>> GetProductAsync(int id)
         {
             try
             {
-                var product = _context.Products.FirstOrDefault(x => x.ProductId == id);
+                var product = await _context.Products.FirstOrDefaultAsync(x => x.ProductId == id);
                 if (product is null)
                 {
                     return NotFound("Product not found");
