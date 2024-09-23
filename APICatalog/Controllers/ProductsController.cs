@@ -78,7 +78,7 @@ namespace APICatalog.Controllers
             }
             _context.Products.Add(product);
             _context.SaveChanges();
-            return new CreatedAtRouteResult("GetProduct", product);
+            return new CreatedAtRouteResult("GetProduct", new { id = product.ProductId }, product);
         }
 
         [HttpPut("{id:int}")]
