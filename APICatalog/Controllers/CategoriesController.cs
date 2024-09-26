@@ -1,10 +1,12 @@
 ﻿using APICatalog.Context;
 using APICatalog.Filters;
 using APICatalog.Models;
+using APICatalog.Repositories;
 using APICatalog.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace APICatalog.Controllers
 {
@@ -12,13 +14,13 @@ namespace APICatalog.Controllers
     [ApiController]
     public class CategoriesController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly ICategoryRepository _repository;
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
 
-        public CategoriesController(AppDbContext context, IConfiguration configuration, ILogger<CategoriesController> logger)
+        public CategoriesController(ICategoryRepository repository, IConfiguration configuration, ILogger<CategoriesController> logger)
         {
-            _context = context;
+            _repository = repository;
             _configuration = configuration;
             _logger = logger;
         }
@@ -33,70 +35,42 @@ namespace APICatalog.Controllers
             return $"chave 1: {valor1}\nchave 2: {valor2}\nSeção 1 => Chave 2: {secao1}";
         }*/
 
+        /*[HttpGet("products")]
+       public async Task<ActionResult<IEnumerable<Category>>> GetAsync()
+       {
+
+           _logger.LogInformation("================ Get api/categories/products ==================");
+           //var categories = _context.Categories.Include(x => x.Products).AsNoTracking().ToList();
+           var categories = await _context.Categories.Include(x => x.Products).Where(p => p.CategoryId <= 5).ToListAsync();
+
+
+           if (categories is null)
+           {
+               return NotFound();
+           }
+           return categories;
+
+       }*/
+
         [HttpGet]
         [ServiceFilter(typeof(ApiLoggingFilter))]
-        public async Task<ActionResult<IEnumerable<Category>>> GetCategoriesAsync()
+        public ActionResult<IEnumerable<Category>> GetCategories()
         {
-            try
-            {
-                var categories = await _context.Categories.AsNoTracking().ToListAsync();
-
-                if (categories is null)
-                {
-                    return NotFound();
-                }
-
-                return categories;
-            }
-            catch (Exception)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
-            }
-            
-        }
-        [HttpGet("products")]
-        public async Task<ActionResult<IEnumerable<Category>>> GetAsync()
-        {
-            throw new ArgumentException("ocorreu um erro no tratamento do request");
-           /* try
-            {
-                _logger.LogInformation("================ Get api/categories/products ==================");
-                //var categories = _context.Categories.Include(x => x.Products).AsNoTracking().ToList();
-                var categories = await _context.Categories.Include(x => x.Products).Where(p => p.CategoryId <= 5).ToListAsync();
-
-
-                if (categories is null)
-                {
-                    return NotFound();
-                }
-                return categories;
-            }
-            catch (Exception)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
-            }*/
-            
+            var categories = _repository.GetCategories();
+            return Ok(categories);
         }
 
-        [HttpGet("{id:int}", Name = "GetGategory")]
-        public async Task<ActionResult<Category>> GetCategory(int id)
+        [HttpGet("{id:int}", Name = "GetCategory")]
+        public ActionResult<Category> GetCategory(int id)
         {
-           // throw new Exception("Exception after trying to return product by id");
-            try
-            {
-                var category = await _context.Categories.FirstOrDefaultAsync(x => x.CategoryId == id);
+            var category = _repository.GetCategory(id);
 
-                if (category is null)
-                {
-                    return NotFound("Category not found");
-                }
-                return Ok(category);
-            }
-            catch (Exception)
+            if (category is null)
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
+                _logger.LogWarning($"Category by id {id} not found");
+                return NotFound("Category not found");
             }
-            
+            return Ok(category);
         }
 
         [HttpPost]
@@ -104,13 +78,12 @@ namespace APICatalog.Controllers
         {
             if (category is null)
             {
+                _logger.LogWarning("Invalid data");
                 return BadRequest();
             }
 
-            _context.Categories.Add(category);
-            _context.SaveChanges();
-
-            return new CreatedAtRouteResult("GetCategory", new { id = category.CategoryId }, category);
+            var createdCategory = _repository.Create(category);
+            return new CreatedAtRouteResult("GetCategory", new { id = createdCategory.CategoryId }, createdCategory);
         }
 
         [HttpPut("{id:int}")]
@@ -118,25 +91,26 @@ namespace APICatalog.Controllers
         {
             if (id != category.CategoryId)
             {
-                return BadRequest("Category not found");
+                _logger.LogWarning("Invalid data");
+                return BadRequest("Invalid data");
             }
-            _context.Entry(category).State = EntityState.Modified;
-            _context.SaveChanges();
+            _repository.Update(category);
             return Ok(category);
         }
 
         [HttpDelete("{id:int}")]
         public ActionResult Delete(int id)
         {
-            var category = _context.Categories.FirstOrDefault(x => x.CategoryId == id);
+            var category = _repository.GetCategory(id);
 
             if (category is null)
             {
-                return NotFound("category not found");
+                _logger.LogWarning("Invalid Data");
+                return NotFound("Invalid Data");
             }
-            _context.Categories.Remove(category);
-            _context.SaveChanges();
-            return Ok(category);
+
+            var deletedCategory = _repository.Delete(id);
+            return Ok(deletedCategory);
 
 
         }

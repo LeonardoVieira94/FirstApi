@@ -1,5 +1,6 @@
 ﻿using APICatalog.Context;
 using APICatalog.Models;
+using APICatalog.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -12,61 +13,50 @@ namespace APICatalog.Controllers
     [ApiController]
     public class ProductsController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IProductRepository _repository;
+        private readonly ILogger _logger;
 
-        public ProductsController(AppDbContext context)
+        public ProductsController(IProductRepository repository, ILogger<ProductsController> logger)
         {
-            _context = context;
+            _repository = repository;
+            _logger = logger;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Product>>> GetProductsAsync()
+        public ActionResult<IEnumerable<Product>> GetProducts()
         {
-            try
+            var products = _repository.GetProducts().ToList();
+            if (products is null)
             {
-                var products = await _context.Products.AsNoTracking().ToListAsync();
-                if (products is null)
-                {
-                    return NotFound();
-                }
-                return products;
+                _logger.LogWarning("Not Found");
+                return NotFound("Not found");
             }
-            catch (Exception)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
-            }
-            
+            return Ok(products);
         }
         [HttpGet("price/{value:decimal}")]
-        public async Task<ActionResult<IEnumerable<Product>>> GetByPriceAsync(decimal value)
+        public ActionResult<IEnumerable<Product>> GetByPrice(decimal value)
         {
-            var products = await _context.Products.Where(p => p.Price >= value).ToListAsync();
+            var products = _repository.GetProducts().Where(p => p.Price >= value).ToList();
 
             if (!products.Any())
             {
-                return NotFound($"No products found that costs more or equals {value}");
+                _logger.LogWarning($"No products were found that costs more or equals {value}");
+                return NotFound($"No products were found that costs more or equals {value}");
             }
 
             return Ok(products);
         }
 
         [HttpGet("{id:int:min(1)}", Name = "GetProduct")]
-        public async Task<ActionResult<Product>> GetProductAsync(int id)
+        public ActionResult<Product> GetProduct(int id)
         {
-            try
+            var product = _repository.GetProductById(id);
+            if (product is null)
             {
-                var product = await _context.Products.FirstOrDefaultAsync(x => x.ProductId == id);
-                if (product is null)
-                {
-                    return NotFound("Product not found");
-                }
-                return product;
+                _logger.LogWarning("Product not found");
+                return NotFound("Product not found");
             }
-            catch (Exception)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, "There was an error during the process of your request");
-            }
-  
+            return product;
         }
 
         [HttpPost]
@@ -74,11 +64,11 @@ namespace APICatalog.Controllers
         {
             if (product is null)
             {
-                return BadRequest();
+                _logger.LogWarning("Invalid Data");
+                return BadRequest("Invalid Data");
             }
-            _context.Products.Add(product);
-            _context.SaveChanges();
-            return new CreatedAtRouteResult("GetProduct", new { id = product.ProductId }, product);
+            var createdProduct = _repository.Create(product);
+            return new CreatedAtRouteResult("GetProduct", new { id = createdProduct.ProductId }, createdProduct);
         }
 
         [HttpPut("{id:int}")]
@@ -86,27 +76,33 @@ namespace APICatalog.Controllers
         {
             if (id != product.ProductId)
             {
-                return BadRequest();
+                _logger.LogWarning("Invalid product");
+                return BadRequest("Invalid product");
             }
-            _context.Entry(product).State = EntityState.Modified;
-            _context.SaveChanges();
-            
-            return Ok(product);
+            bool updated = _repository.Update(product);
+            if (updated)
+            {
+                return Ok(product);
+            }
+            else
+            {
+                return StatusCode(500, $"error updating product by id {id}");
+            }
         }
 
         [HttpDelete("{id:int}")]
         public ActionResult Delete(int id)
         {
-            var product = _context.Products.FirstOrDefault(p => p.ProductId == id);
-
-            if (product is null)
+            
+            bool deleted = _repository.Delete(id);
+            if (deleted)
             {
-                return NotFound("product not found");
+                return Ok($"Product by id {id} was sucessfully deleted.");
             }
-            _context.Products.Remove(product);
-            _context.SaveChanges();
-
-            return Ok(product);
+            else
+            {
+                return StatusCode(500, $"error deleting product by id {id}");
+            }
         }
 
     }

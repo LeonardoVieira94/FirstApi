@@ -2,6 +2,7 @@ using APICatalog.Context;
 using APICatalog.Extensions;
 using APICatalog.Filters;
 using APICatalog.Logging;
+using APICatalog.Repositories;
 using APICatalog.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -30,8 +31,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
                                   options.UseMySql(mySqlConnection,
                                   ServerVersion.AutoDetect(mySqlConnection)));
 
-builder.Services.AddTransient<IMyService, MyService>();
 builder.Services.AddScoped<ApiLoggingFilter>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+
 builder.Logging.AddProvider(new CustomLoggerProvider(new CustomLoggerProviderConfiguration
 {
     LogLevel = LogLevel.Information
