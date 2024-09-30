@@ -1,7 +1,7 @@
 ﻿using APICatalog.Context;
 using APICatalog.Filters;
 using APICatalog.Models;
-using APICatalog.Repositories;
+using APICatalog.Repositories.Interfaces;
 using APICatalog.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +14,7 @@ namespace APICatalog.Controllers
     [ApiController]
     public class CategoriesController : ControllerBase
     {
-        private readonly ICategoryRepository _repository;
+        private readonly IRepository<Category> _repository;
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
 
@@ -56,14 +56,14 @@ namespace APICatalog.Controllers
         [ServiceFilter(typeof(ApiLoggingFilter))]
         public ActionResult<IEnumerable<Category>> GetCategories()
         {
-            var categories = _repository.GetCategories();
+            var categories = _repository.GetAll();
             return Ok(categories);
         }
 
         [HttpGet("{id:int}", Name = "GetCategory")]
         public ActionResult<Category> GetCategory(int id)
         {
-            var category = _repository.GetCategory(id);
+            var category = _repository.Get(c => c.CategoryId == id);
 
             if (category is null)
             {
@@ -101,7 +101,7 @@ namespace APICatalog.Controllers
         [HttpDelete("{id:int}")]
         public ActionResult Delete(int id)
         {
-            var category = _repository.GetCategory(id);
+            var category = _repository.Get(c => c.CategoryId == id);
 
             if (category is null)
             {
@@ -109,7 +109,7 @@ namespace APICatalog.Controllers
                 return NotFound("Invalid Data");
             }
 
-            var deletedCategory = _repository.Delete(id);
+            var deletedCategory = _repository.Delete(category);
             return Ok(deletedCategory);
 
 

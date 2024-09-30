@@ -1,6 +1,6 @@
 ﻿using APICatalog.Context;
 using APICatalog.Models;
-using APICatalog.Repositories;
+using APICatalog.Repositories.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -13,19 +13,19 @@ namespace APICatalog.Controllers
     [ApiController]
     public class ProductsController : ControllerBase
     {
-        private readonly IProductRepository _repository;
+        private readonly IProductRepository _productRepository;
         private readonly ILogger _logger;
 
-        public ProductsController(IProductRepository repository, ILogger<ProductsController> logger)
+        public ProductsController(IProductRepository productRepository, ILogger<ProductsController> logger)
         {
-            _repository = repository;
+            _productRepository = productRepository;
             _logger = logger;
         }
 
         [HttpGet]
         public ActionResult<IEnumerable<Product>> GetProducts()
         {
-            var products = _repository.GetProducts().ToList();
+            var products = _productRepository.GetAll();
             if (products is null)
             {
                 _logger.LogWarning("Not Found");
@@ -33,15 +33,15 @@ namespace APICatalog.Controllers
             }
             return Ok(products);
         }
-        [HttpGet("price/{value:decimal}")]
-        public ActionResult<IEnumerable<Product>> GetByPrice(decimal value)
+        [HttpGet("category/{id:int}")]
+        public ActionResult<IEnumerable<Product>> GetByCategory(int id)
         {
-            var products = _repository.GetProducts().Where(p => p.Price >= value).ToList();
+            var products = _productRepository.GetProductByCategory(id);
 
             if (!products.Any())
             {
-                _logger.LogWarning($"No products were found that costs more or equals {value}");
-                return NotFound($"No products were found that costs more or equals {value}");
+                _logger.LogWarning($"No products were found by this category {id}");
+                return NotFound($"No products were found by this category {id}");
             }
 
             return Ok(products);
@@ -50,13 +50,13 @@ namespace APICatalog.Controllers
         [HttpGet("{id:int:min(1)}", Name = "GetProduct")]
         public ActionResult<Product> GetProduct(int id)
         {
-            var product = _repository.GetProductById(id);
+            var product = _productRepository.Get(c => c.ProductId == id);
             if (product is null)
             {
                 _logger.LogWarning("Product not found");
                 return NotFound("Product not found");
             }
-            return product;
+            return Ok(product);
         }
 
         [HttpPost]
@@ -67,7 +67,7 @@ namespace APICatalog.Controllers
                 _logger.LogWarning("Invalid Data");
                 return BadRequest("Invalid Data");
             }
-            var createdProduct = _repository.Create(product);
+            var createdProduct = _productRepository.Create(product);
             return new CreatedAtRouteResult("GetProduct", new { id = createdProduct.ProductId }, createdProduct);
         }
 
@@ -76,33 +76,24 @@ namespace APICatalog.Controllers
         {
             if (id != product.ProductId)
             {
-                _logger.LogWarning("Invalid product");
-                return BadRequest("Invalid product");
+                _logger.LogWarning($"Product by id {id} not found");
+                return BadRequest($"Product by id {id} not found");
             }
-            bool updated = _repository.Update(product);
-            if (updated)
-            {
-                return Ok(product);
-            }
-            else
-            {
-                return StatusCode(500, $"error updating product by id {id}");
-            }
+            _productRepository.Update(product);
+            return Ok(product);
         }
 
         [HttpDelete("{id:int}")]
         public ActionResult Delete(int id)
         {
-            
-            bool deleted = _repository.Delete(id);
-            if (deleted)
+            var product = _productRepository.Get(c => c.ProductId == id);
+            if (product is null)
             {
-                return Ok($"Product by id {id} was sucessfully deleted.");
+                _logger.LogWarning("Product not found");
+                return NotFound("Product not found");
             }
-            else
-            {
-                return StatusCode(500, $"error deleting product by id {id}");
-            }
+            _productRepository.Delete(product);
+            return Ok(product);
         }
 
     }
