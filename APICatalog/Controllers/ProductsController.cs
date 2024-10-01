@@ -1,6 +1,8 @@
 ﻿using APICatalog.Context;
+using APICatalog.DTOs;
 using APICatalog.Models;
 using APICatalog.Repositories.Interfaces;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -13,87 +15,109 @@ namespace APICatalog.Controllers
     [ApiController]
     public class ProductsController : ControllerBase
     {
-        private readonly IProductRepository _productRepository;
+        private readonly IUnityOfWork _uof;
         private readonly ILogger _logger;
+        private readonly IMapper _mapper;
 
-        public ProductsController(IProductRepository productRepository, ILogger<ProductsController> logger)
+        public ProductsController(ILogger<ProductsController> logger, IUnityOfWork uof, IMapper mapper)
         {
-            _productRepository = productRepository;
             _logger = logger;
+            _uof = uof;
+            _mapper = mapper;
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<Product>> GetProducts()
+        public ActionResult<IEnumerable<ProductDTO>> GetProducts()
         {
-            var products = _productRepository.GetAll();
+            var products = _uof.ProductRepository.GetAll();
             if (products is null)
             {
                 _logger.LogWarning("Not Found");
                 return NotFound("Not found");
             }
-            return Ok(products);
+
+            var productsDTO = _mapper.Map<IEnumerable<ProductDTO>>(products);
+
+            return Ok(productsDTO);
         }
         [HttpGet("category/{id:int}")]
-        public ActionResult<IEnumerable<Product>> GetByCategory(int id)
+        public ActionResult<IEnumerable<ProductDTO>> GetByCategory(int id)
         {
-            var products = _productRepository.GetProductByCategory(id);
+            var products = _uof.ProductRepository.GetProductByCategory(id);
 
             if (!products.Any())
             {
                 _logger.LogWarning($"No products were found by this category {id}");
                 return NotFound($"No products were found by this category {id}");
             }
+            var productsDTO = _mapper.Map<IEnumerable<ProductDTO>>(products);
 
-            return Ok(products);
+            return Ok(productsDTO);
         }
 
         [HttpGet("{id:int:min(1)}", Name = "GetProduct")]
-        public ActionResult<Product> GetProduct(int id)
+        public ActionResult<ProductDTO> GetProduct(int id)
         {
-            var product = _productRepository.Get(c => c.ProductId == id);
+            var product = _uof.ProductRepository.Get(c => c.ProductId == id);
             if (product is null)
             {
                 _logger.LogWarning("Product not found");
                 return NotFound("Product not found");
             }
-            return Ok(product);
+            var productDTO = _mapper.Map<ProductDTO>(product);
+            return Ok(productDTO);
         }
 
         [HttpPost]
-        public ActionResult Post(Product product)
+        public ActionResult<ProductDTO> Post(ProductDTO productDto)
         {
-            if (product is null)
+            if (productDto is null)
             {
                 _logger.LogWarning("Invalid Data");
                 return BadRequest("Invalid Data");
             }
-            var createdProduct = _productRepository.Create(product);
-            return new CreatedAtRouteResult("GetProduct", new { id = createdProduct.ProductId }, createdProduct);
+            var product = _mapper.Map<Product>(productDto);
+
+            var createdProduct = _uof.ProductRepository.Create(product);
+            _uof.Commit();
+
+            var newProductDto = _mapper.Map<ProductDTO>(createdProduct);
+
+            return new CreatedAtRouteResult("GetProduct", new { id = newProductDto.ProductId }, newProductDto);
         }
 
         [HttpPut("{id:int}")]
-        public ActionResult Put(int id, Product product)
+        public ActionResult<ProductDTO> Put(int id, ProductDTO productDto)
         {
-            if (id != product.ProductId)
+            if (id != productDto.ProductId)
             {
                 _logger.LogWarning($"Product by id {id} not found");
                 return BadRequest($"Product by id {id} not found");
             }
-            _productRepository.Update(product);
-            return Ok(product);
+            var product = _mapper.Map<Product>(productDto);
+            var updatedProduct = _uof.ProductRepository.Update(product);
+            _uof.Commit();
+
+            var updatedProductDto = _mapper.Map<Product>(updatedProduct);
+
+            return Ok(updatedProductDto);
         }
 
         [HttpDelete("{id:int}")]
-        public ActionResult Delete(int id)
+        public ActionResult<ProductDTO> Delete(int id)
         {
-            var product = _productRepository.Get(c => c.ProductId == id);
+            var product = _uof.ProductRepository.Get(c => c.ProductId == id);
             if (product is null)
             {
                 _logger.LogWarning("Product not found");
                 return NotFound("Product not found");
             }
-            _productRepository.Delete(product);
-            return Ok(product);
+            _uof.ProductRepository.Delete(product);
+            _uof.Commit(); 
+
+            var deletedProduct = _mapper.Map<ProductDTO>(product);
+
+            return Ok(deletedProduct);
         }
 
     }
