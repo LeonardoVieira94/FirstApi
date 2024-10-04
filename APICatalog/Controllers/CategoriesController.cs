@@ -3,11 +3,13 @@ using APICatalog.DTOs;
 using APICatalog.DTOs.Mappings;
 using APICatalog.Filters;
 using APICatalog.Models;
+using APICatalog.Pagination;
 using APICatalog.Repositories.Interfaces;
 using APICatalog.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using System.Data;
 
 namespace APICatalog.Controllers
@@ -19,6 +21,7 @@ namespace APICatalog.Controllers
         private readonly IUnityOfWork _uof;
         private readonly IConfiguration _configuration;
         private readonly ILogger _logger;
+
 
         public CategoriesController(IConfiguration configuration, ILogger<CategoriesController> logger, IUnityOfWork uof)
         {
@@ -53,6 +56,41 @@ namespace APICatalog.Controllers
            return categories;
 
        }*/
+        [HttpGet("pagination")]
+
+        public ActionResult<IEnumerable<CategoryDTO>> GetCategoriesP([FromQuery]CategoriesParameters categoriesParameters)
+        {
+            var categories = _uof.CategoryRepository.GetCategories(categoriesParameters);
+
+            return GetCCategories(categories);
+        }
+
+        private ActionResult<IEnumerable<CategoryDTO>> GetCCategories(PagedList<Category> categories)
+        {
+            var metadata = new
+            {
+                categories.TotalCount,
+                categories.PageSize,
+                categories.CurrentPage,
+                categories.TotalPages,
+                categories.HasNext,
+                categories.HasPrevious
+            };
+
+            Response.Headers.Append("X-Pagination", JsonConvert.SerializeObject(metadata));
+
+            var categoriesDto = categories.ToCategoryDTOList();
+            return Ok(categoriesDto);
+        }
+
+        [HttpGet("filter/name/pagination")]
+        public ActionResult<IEnumerable<CategoryDTO>> GetNameCategories([FromQuery]CategoriesFilterParameters categoriesFilterParams)
+        {
+            var categories = _uof.CategoryRepository.GetCategoriesFilterName(categoriesFilterParams);
+
+            return GetCCategories(categories);
+        }
+
 
         [HttpGet]
         [ServiceFilter(typeof(ApiLoggingFilter))]
@@ -72,6 +110,7 @@ namespace APICatalog.Controllers
             }*/
             var categoriesDto = categories.ToCategoryDTOList();
             return Ok(categoriesDto);
+           
         }
 
         [HttpGet("{id:int}", Name = "GetCategory")]
